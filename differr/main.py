@@ -18,7 +18,7 @@ from .statistics import test_significant_der_sites
 from .output import ResultsHDF5, write_stats_to_bed
 
 
-BATCH_SIZE = 30_000
+BATCH_SIZE = 1_000_000
 MEDIAN_EXPR_THRESHOLD = 10
 MIN_EXPR_THRESHOLD = 0
 
@@ -28,6 +28,8 @@ def filter_by_expression(counts, median_threshold, min_threshold):
     Filter the counts matrix by median expression of replicates with
     a condition, and a minimum expression level across all samples
     '''
+    if counts.empty:
+        return counts
     # If all reps are 100% matches we don't need to do any tests
     is_variable = counts.groupby(level=2, axis=1).any().sum(1)
     var_filt = is_variable > 1
@@ -88,9 +90,8 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
                 if res_hdf5_fn is not None:
                     res_hdf5.write(counts, mismatch_counts, stats)
                 click.echo('Chrom {}: processed {:.1f} Megabases'.format(ref_name, i / 1_000_000))
-                break
     results = pd.concat(results, axis=0)
-    _, results['hetero_G_fdr'], *_ = multipletests(results.hetero_G_pval, method='fdr_bh')
+    _, results['hetero_G_fdr'], *_ = multipletests(results.hetero_G_pval.fillna(1), method='fdr_bh')
     # Filter by FDR threshold:
     results = results[results.hetero_G_fdr < fdr_threshold]
     # Filter results where the sum of homogeneity G statistics is greater

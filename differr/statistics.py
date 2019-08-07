@@ -54,7 +54,7 @@ def test_significant_der_sites(counts, fdr_threshold, fasta):
 
         # use reference base to generate odds ratio for mismatch compared to the reference
         # (kd_mm / kd_m) / (cntrl_m / cntrl_mm)
-        ref_base = get_reference_base(fasta, chrom, pos, strand)
+        ref_base = get_reference_base(fasta, chrom, pos)
         odds_ratio, mm_counts = calculate_mismatch_odds_ratio(
             ref_base, kd_pooled, cntrl_pooled
         )
