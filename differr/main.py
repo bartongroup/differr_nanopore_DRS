@@ -102,8 +102,16 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
             
 
 @click.command()
-@click.option('-a', '--cond-A-bams', required=True, multiple=True)
-@click.option('-b', '--cond-B-bams', required=True, multiple=True)
+@click.option(
+    '-a', '--cond-A-bams', required=True, multiple=True,
+    help=('BAM files for low modification sample. To include multiple '
+          'BAMs you need to use the -a flag multiple times.')
+)
+@click.option(
+    '-b', '--cond-B-bams', required=True, multiple=True,
+    help=('BAM files for wild type/complemented line with normal '
+          'modification levels')
+)
 @click.option('-r', '--reference-fasta', required=True)
 @click.option('-o', '--output-bed', required=True)
 @click.option('-c', '--raw-counts-hdf', required=False, default=None)
