@@ -18,6 +18,7 @@ setup(
     ],
     install_requires=[
         'numpy',
+        'scipy',
         'pandas',
         'click',
         'joblib',
