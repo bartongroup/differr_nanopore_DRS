@@ -101,7 +101,8 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     # only if we have replicates in both conds
     if kd_has_replicates and cntrl_has_replicates:
         results = results[(results.homog_G_cntrl + results.homog_G_kd) < results.hetero_G]
-    res_hdf5.close()
+    if res_hdf5_fn is not None:
+        res_hdf5.close()
     return results
             
 
