@@ -29,6 +29,6 @@ def calculate_mismatch_odds_ratio(ref_base, kd_counts, cntrl_counts):
     except KeyError:
         cntrl_m = 0.0
     cntrl_mm = float(cntrl_counts.sum() - cntrl_m)
-    odds_ratio = np.log2(((kd_mm + 0.5) / (kd_m + 0.5)) / 
-                         ((cntrl_mm + 0.5) / (cntrl_m + 0.5)))
+    odds_ratio = np.log2(((cntrl_mm + 0.5) / (cntrl_m + 0.5)) / 
+                         ((kd_mm + 0.5) / (kd_m + 0.5)))
     return odds_ratio, [ref_base, kd_mm, kd_m, cntrl_mm, cntrl_m]
