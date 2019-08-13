@@ -2,7 +2,7 @@
 
 ### How to use:
 * Basecall & map direct RNA data (all datasets **MUST** be sequenced at approximately the same time with the exactly the same flowcell/kit/MinKNOW software, and basecalled and mapped in the same way with the same model, otherwise you **WILL** get loads of false positives. Nanopore update their pores/kits/models/software all the time, so be wary...).
-* Run `differr` on mapped bam files. Currently the software is written in such a way that replicates are required, although this could be changed.
+* Run `differr` on mapped bam files.
 * Output from `differr` is a bed file with the positions with significantly altered error, and a optional hdf5 file with all of the per reference base basecalls, which might be useful for further analyses.
 * Columns of bed file are:
     * chrom, start, end, name
