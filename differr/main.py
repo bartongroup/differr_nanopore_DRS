@@ -18,7 +18,7 @@ from .statistics import test_significant_der_sites
 from .output import ResultsHDF5, write_stats_to_bed
 
 
-BATCH_SIZE = 10_00_000
+BATCH_SIZE = 1_000_000
 MEDIAN_EXPR_THRESHOLD = 10
 MIN_EXPR_THRESHOLD = 0
 
