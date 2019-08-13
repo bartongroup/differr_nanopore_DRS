@@ -19,8 +19,6 @@ from .output import ResultsHDF5, write_stats_to_bed
 
 
 BATCH_SIZE = 1_000_000
-MEDIAN_EXPR_THRESHOLD = 10
-MIN_EXPR_THRESHOLD = 0
 
 
 def filter_by_expression(counts, median_threshold, min_threshold):
@@ -40,7 +38,7 @@ def filter_by_expression(counts, median_threshold, min_threshold):
     # The expression in all replicates of all conditions must be greater than this value
     # Currently there must just be at least one read in all conditions
     # i.e. threshold is zero
-    min_filt = (per_rep_expr > min_threshold).all(1)
+    min_filt = (per_rep_expr >= min_threshold).all(1)
     return counts[var_filt & med_filt & min_filt]
 
 
@@ -132,11 +130,21 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     default=True,
     help='Whether to normalise counts by sample depth (counts per million) before performing stats.'
 )
+@click.option(
+    '--median-expr-threshold', required=False, default=10,
+    help='The minimum value for the median number of reads per condition after normalisation. Default is 10.'
+)
+@click.option(
+    '--min-expr-threshold', required=False, default=1,
+    help='The minimum number of reads that ALL replicates should have after normalisation. Default is 1.'
+)
 def differr(cond_a_bams, cond_b_bams,
             reference_fasta, output_bed,
             raw_counts_hdf,
             fdr_threshold, processes,
-            max_depth, normalise):
+            max_depth, normalise,
+            median_expr_threshold,
+            min_expr_threshold):
     '''
     A script for detecting differential error rates in aligned Nanopore data
     '''
@@ -148,8 +156,8 @@ def differr(cond_a_bams, cond_b_bams,
         reference_fasta,
         raw_counts_hdf,
         batch_size=BATCH_SIZE,
-        median_expr_threshold=MEDIAN_EXPR_THRESHOLD,
-        min_expr_threshold=MIN_EXPR_THRESHOLD,
+        median_expr_threshold=median_expr_threshold,
+        min_expr_threshold=min_expr_threshold,
         fdr_threshold=fdr_threshold,
         processes=processes,
         max_depth=max_depth,
