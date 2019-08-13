@@ -11,8 +11,8 @@ from .mismatch import (
 
 RESULT_COLUMNS = [
     'chrom', 'pos', 'strand', 'mismatch_odds_ratio',
-    'homog_G_cntrl', 'homog_G_cntrl_pval',
     'homog_G_kd', 'homog_G_kd_pval',
+    'homog_G_cntrl', 'homog_G_cntrl_pval',
     'hetero_G', 'hetero_G_pval' # FDR is calculated later
 ]
 
@@ -71,8 +71,8 @@ def test_significant_der_sites(counts, fdr_threshold, fasta):
             ref_base, kd_pooled, cntrl_pooled
         )
         res.append([chrom, pos, strand, odds_ratio,
-                    cntrl_hom_g, cntrl_hom_p_val,
                     kd_hom_g, kd_hom_p_val,
+                    cntrl_hom_g, cntrl_hom_p_val,
                     kd_vs_cntrl_g, kd_vs_cntrl_p_val])
         mismatch_counts.append(mm_counts)
     res = pd.DataFrame(res, columns=RESULT_COLUMNS)
