@@ -61,10 +61,12 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     results = []
     if res_hdf5_fn is not None:
         res_hdf5 = ResultsHDF5(res_hdf5_fn, norm_factors, references)
+    kd_has_replicates = len(kd_bam_fns) > 1
+    cntrl_has_replicates = len(cntrl_bam_fns) > 1
     with Parallel(n_jobs=processes) as pool, pysam.FastaFile(fasta_fn) as fasta:
         for ref_name, ref_len in references.items():
             for i in range(0, ref_len, batch_size):
-                query = (ref_name, i, i + batch_size)
+                query = (ref_name, i, min(ref_len, i + batch_size))
                 # use joblib to process queries for all the bam files in parallel.
                 # means we have to reopen the bam file each time (as they aren't
                 # pickle-able) but its worth it for the speedup if batch_size is
@@ -95,8 +97,10 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     # Filter by FDR threshold:
     results = results[results.hetero_G_fdr < fdr_threshold]
     # Filter results where the sum of homogeneity G statistics is greater
-    # than G statistic for cntrl vs kd:
-    results = results[(results.homog_G_cntrl + results.homog_G_kd) < results.hetero_G]
+    # than G statistic for cntrl vs kd
+    # only if we have replicates in both conds
+    if kd_has_replicates and cntrl_has_replicates:
+        results = results[(results.homog_G_cntrl + results.homog_G_kd) < results.hetero_G]
     res_hdf5.close()
     return results
             
