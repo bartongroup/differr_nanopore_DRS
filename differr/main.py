@@ -125,9 +125,9 @@ def differr(cond_a_bams, cond_b_bams,
     '''
     A script for detecting differential error rates in aligned Nanopore data
     '''
-    if len(cond_a_bams) == 1 or len(cond_b_bams) == 1:
-        raise ValueError('Where are the replicates?')
-    assert len(cond_a_bams) == len(cond_b_bams)
+#    if len(cond_a_bams) == 1 or len(cond_b_bams) == 1:
+#        raise ValueError('Where are the replicates?')
+#    assert len(cond_a_bams) == len(cond_b_bams)
     if processes == -1:
         processes = min(len(cond_a_bams) + len(cond_b_bams), cpu_count())
     results = run_differr_analysis(
