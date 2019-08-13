@@ -15,16 +15,19 @@ def calculate_norm_factor(bam):
     return bam.mapped / 1_000_000
 
 
-def get_norm_factors(bam_list):
+def get_norm_factors(bam_list, normalise=True):
     '''
     Open all the bam files in a list and calculate a normalisation
     factor for the file - this is generally just the number of mapped
     reads divided by a million
     '''
     norm_factors = {}
-    for bam_fn in bam_list:
-        with pysam.AlignmentFile(bam_fn) as bam:
-            norm_factors[bam_fn] = calculate_norm_factor(bam)
+    if normalise:
+        for bam_fn in bam_list:
+            with pysam.AlignmentFile(bam_fn) as bam:
+                norm_factors[bam_fn] = calculate_norm_factor(bam)
+    else:
+        norm_factors = {bam_fn: 1 for bam_fn in bam_list}
     return norm_factors
 
 

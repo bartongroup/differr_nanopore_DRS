@@ -18,7 +18,7 @@ from .statistics import test_significant_der_sites
 from .output import ResultsHDF5, write_stats_to_bed
 
 
-BATCH_SIZE = 1_000_000
+BATCH_SIZE = 10_00_000
 MEDIAN_EXPR_THRESHOLD = 10
 MIN_EXPR_THRESHOLD = 0
 
@@ -51,12 +51,13 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
                          min_expr_threshold=0,
                          fdr_threshold=0.05,
                          processes=6,
-                         max_depth=10_000_000):
+                         max_depth=10_000_000,
+                         normalise=True):
     '''
     run the whole analysis on a set of bam files. Returns a
     dataframe filtered by fdr.
     '''
-    norm_factors = get_norm_factors(chain(kd_bam_fns, cntrl_bam_fns))    
+    norm_factors = get_norm_factors(chain(kd_bam_fns, cntrl_bam_fns), normalise)
     references = get_references_and_lengths(cntrl_bam_fns[0])
     results = []
     if res_hdf5_fn is not None:
@@ -122,17 +123,23 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
 @click.option('-c', '--raw-counts-hdf', required=False, default=None)
 @click.option('-f', '--fdr-threshold', default=0.05)
 @click.option('-p', '--processes', default=-1)
-@click.option('-m', '--max-depth', default=10_000_000)
+@click.option(
+    '-m', '--max-depth', default=10_000_000,
+    help='Maximum depth for pysam pileup, default is a very large number (basically samples all reads)'
+)
+@click.option(
+    '--normalise/--no-normalise',
+    default=True,
+    help='Whether to normalise counts by sample depth (counts per million) before performing stats.'
+)
 def differr(cond_a_bams, cond_b_bams,
             reference_fasta, output_bed,
             raw_counts_hdf,
-            fdr_threshold, processes, max_depth):
+            fdr_threshold, processes,
+            max_depth, normalise):
     '''
     A script for detecting differential error rates in aligned Nanopore data
     '''
-#    if len(cond_a_bams) == 1 or len(cond_b_bams) == 1:
-#        raise ValueError('Where are the replicates?')
-#    assert len(cond_a_bams) == len(cond_b_bams)
     if processes == -1:
         processes = min(len(cond_a_bams) + len(cond_b_bams), cpu_count())
     results = run_differr_analysis(
@@ -145,7 +152,8 @@ def differr(cond_a_bams, cond_b_bams,
         min_expr_threshold=MIN_EXPR_THRESHOLD,
         fdr_threshold=fdr_threshold,
         processes=processes,
-        max_depth=max_depth
+        max_depth=max_depth,
+        normalise=normalise,
     )
     write_stats_to_bed(output_bed, results)
 
