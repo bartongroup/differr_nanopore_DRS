@@ -69,3 +69,31 @@ def write_stats_to_bed(bed_fn, results):
                 G_stat_B=G_B,
                 G_stat_B_p_val=G_B_p
             ))
+
+
+PHASING_BED_RECORD = (
+    '{chrom}\t{start:d}\t{end:d}\t'
+    'DER_site\t{score:.0f}\t{strand}\t'
+    '{n_polya_sites:d}\t{G_stat:.2f}\t{p_val:.2f}\t'
+    '{q_val:.2f}\t{homo_G_stat:.2f}\n'
+)
+
+
+def write_phasing_stats_to_bed(bed_fn, results):
+    '''
+    Write the results to a bed file (with a bunch of extra columns for G-test results)
+    '''
+    with open(bed_fn, 'w') as bed:
+        for _, chrom, pos, strand, n_polya_sites, homo_G, hetero_G, p_val, fdr in results.itertuples():
+            bed.write(PHASING_BED_RECORD.format(
+                chrom=chrom,
+                start=pos,
+                end=pos + 1,
+                score=nlog10(fdr),
+                strand=strand,
+                n_polya_sites=n_polya_sites,
+                G_stat=hetero_G,
+                p_val=nlog10(p_val),
+                q_val=nlog10(fdr),
+                homo_G_stat=homo_G
+            ))

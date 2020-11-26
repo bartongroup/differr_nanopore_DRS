@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 import pandas as pd
 import pysam
@@ -31,10 +32,25 @@ def get_norm_factors(bam_list, normalise=True):
     return norm_factors
 
 
-def get_references_and_lengths(bam_fn):
+def parse_query(query):
+    try:
+        chrom, start, end = re.search('^(.+):(\d+)-(\d+)$', query).groups()
+    except ValueError:
+        raise ValueError('Could not parse query')
+    start, end = int(start), int(end)
+    return chrom, start, end
+
+
+def get_references_and_lengths(bam_fn, query=None):
     '''Open a bam file and get the length of all the references from the header'''
     with pysam.AlignmentFile(bam_fn) as bam:
-        reference_lengths = {ref: bam.get_reference_length(ref) for ref in bam.references}
+        if query is None:
+            reference_lengths = {ref: (0, bam.get_reference_length(ref)) for ref in bam.references}
+        else:
+            ref, start, end = parse_query(query)
+            reference_lengths = {
+                ref: (max(0, start), min(end, bam.get_reference_length(ref)))
+            }
     return reference_lengths
 
 

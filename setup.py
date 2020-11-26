@@ -11,6 +11,8 @@ setup(
     entry_points={
         'console_scripts': [
             'differr = differr.main:differr',
+            'phaserr = differr.phasing:identify_three_prime_phasing',
+            'polya_test = differr.cluster:find_polya_clusters',
         ]
     },
     packages=[

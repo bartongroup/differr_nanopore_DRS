@@ -18,8 +18,6 @@ from .statistics import test_significant_der_sites
 from .output import ResultsHDF5, write_stats_to_bed
 
 
-BATCH_SIZE = 1_000_000
-
 
 def filter_by_expression(counts, median_threshold, min_threshold):
     '''
@@ -42,55 +40,74 @@ def filter_by_expression(counts, median_threshold, min_threshold):
     return counts[var_filt & med_filt & min_filt]
 
 
+def _parallel_differr(kd_bam_fns, cntrl_bam_fns,
+                      fasta_fn, query,
+                      norm_factors,
+                      median_expr_threshold=10,
+                      min_expr_threshold=0,
+                      fdr_threshold=0.05,
+                      max_depth=10_000_000):
+    kd_counts = [
+        process_bam_chunk(bam_fn, query, norm_factors[bam_fn], max_depth)
+        for bam_fn in kd_bam_fns
+    ]
+    cntrl_counts = [
+        process_bam_chunk(bam_fn, query, norm_factors[bam_fn], max_depth)
+        for bam_fn in cntrl_bam_fns
+    ]
+    counts = {
+        'kd': pd.concat(kd_counts, axis=1, keys=range(len(kd_bam_fns))),
+        'cntrl': pd.concat(cntrl_counts, axis=1, keys=range(len(cntrl_bam_fns))),
+    }
+    counts = pd.concat(counts, axis=1, join='inner').fillna(0)
+    counts = filter_by_expression(counts, median_expr_threshold, min_expr_threshold)
+    with pysam.FastaFile(fasta_fn) as fasta:
+        stats, mismatch_counts = test_significant_der_sites(counts, fdr_threshold, fasta)
+    return counts, mismatch_counts, stats
+
+
 def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
                          res_hdf5_fn=None,
-                         batch_size=1_000_000,
                          median_expr_threshold=10,
                          min_expr_threshold=0,
                          fdr_threshold=0.05,
                          processes=6,
                          max_depth=10_000_000,
-                         normalise=True):
+                         normalise=True,
+                         query=None):
     '''
     run the whole analysis on a set of bam files. Returns a
     dataframe filtered by fdr.
     '''
     norm_factors = get_norm_factors(chain(kd_bam_fns, cntrl_bam_fns), normalise)
-    references = get_references_and_lengths(cntrl_bam_fns[0])
+    references = get_references_and_lengths(cntrl_bam_fns[0], query)
     results = []
     if res_hdf5_fn is not None:
         res_hdf5 = ResultsHDF5(res_hdf5_fn, norm_factors, references)
-    kd_has_replicates = len(kd_bam_fns) > 1
-    cntrl_has_replicates = len(cntrl_bam_fns) > 1
-    with Parallel(n_jobs=processes) as pool, pysam.FastaFile(fasta_fn) as fasta:
-        for ref_name, ref_len in references.items():
-            for i in range(0, ref_len, batch_size):
-                query = (ref_name, i, min(ref_len, i + batch_size))
-                # use joblib to process queries for all the bam files in parallel.
-                # means we have to reopen the bam file each time (as they aren't
-                # pickle-able) but its worth it for the speedup if batch_size is
-                # big enough, probably.
-                counts = pool(
-                    delayed(process_bam_chunk)(
-                        bam_fn, query, norm_factors[bam_fn], max_depth)
-                    for bam_fn in chain(kd_bam_fns, cntrl_bam_fns)
-                )
-                # convert the list of dataframes to one big dataframe with multiindex
-                # columns - one level for sample number and another for condition
-                # luckily joblib.Parallel preserves the order of the input :)
-                counts = {
-                    'kd': pd.concat(counts[:len(kd_bam_fns)],
-                                    axis=1, keys=range(len(kd_bam_fns))),
-                    'cntrl': pd.concat(counts[len(kd_bam_fns):],
-                                       axis=1, keys=range(len(cntrl_bam_fns))),
-                }
-                counts = pd.concat(counts, axis=1, join='inner').fillna(0)
-                counts = filter_by_expression(counts, median_expr_threshold, min_expr_threshold)
-                stats, mismatch_counts = test_significant_der_sites(counts, fdr_threshold, fasta)
-                results.append(stats)
-                if res_hdf5_fn is not None:
-                    res_hdf5.write(counts, mismatch_counts, stats)
-                click.echo('Chrom {}: processed {:.1f} Megabases'.format(ref_name, i / 1_000_000))
+    parallel_args = {
+        'norm_factors': norm_factors,
+        'median_expr_threshold': median_expr_threshold,
+        'min_expr_threshold': min_expr_threshold,
+        'fdr_threshold': fdr_threshold,
+        'max_depth': max_depth,
+    }
+    querys = []
+    for ref_name, (ref_start, ref_len) in references.items():
+        splits = np.floor(np.linspace(ref_start, ref_len, processes + 1)).astype(int)
+        querys += [
+            (ref_name, i, j)
+            for i, j in zip(splits[:-1], splits[1:])
+        ]
+    parallel_res = Parallel(n_jobs=processes)(
+        delayed(_parallel_differr)(
+            kd_bam_fns, cntrl_bam_fns, fasta_fn, q,
+            **parallel_args
+        ) for q in querys
+    )
+    for counts, mismatch_counts, stats in parallel_res:
+        results.append(stats)
+        if res_hdf5_fn is not None:
+            res_hdf5.write(counts, mismatch_counts, stats)
     results = pd.concat(results, axis=0)
     _, results['hetero_G_fdr'], *_ = multipletests(results.hetero_G_pval.fillna(1), method='fdr_bh')
     # Filter by FDR threshold:
@@ -98,7 +115,7 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     # Filter results where the sum of homogeneity G statistics is greater
     # than G statistic for cntrl vs kd
     # only if we have replicates in both conds
-    if kd_has_replicates and cntrl_has_replicates:
+    if (len(kd_bam_fns) > 1) and (len(cntrl_bam_fns) > 1):
         results = results[(results.homog_G_cntrl + results.homog_G_kd) < results.hetero_G]
     if res_hdf5_fn is not None:
         res_hdf5.close()
@@ -120,7 +137,7 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
 @click.option('-o', '--output-bed', required=True)
 @click.option('-c', '--raw-counts-hdf', required=False, default=None)
 @click.option('-f', '--fdr-threshold', default=0.05)
-@click.option('-p', '--processes', default=-1)
+@click.option('-p', '--processes', default=1)
 @click.option(
     '-m', '--max-depth', default=10_000_000,
     help='Maximum depth for pysam pileup, default is a very large number (basically samples all reads)'
@@ -138,30 +155,30 @@ def run_differr_analysis(kd_bam_fns, cntrl_bam_fns, fasta_fn,
     '--min-expr-threshold', required=False, default=1,
     help='The minimum number of reads that ALL replicates should have after normalisation. Default is 1.'
 )
+@click.option('-q', '--query', required=False, default=None)
 def differr(cond_a_bams, cond_b_bams,
             reference_fasta, output_bed,
             raw_counts_hdf,
             fdr_threshold, processes,
             max_depth, normalise,
             median_expr_threshold,
-            min_expr_threshold):
+            min_expr_threshold,
+            query):
     '''
     A script for detecting differential error rates in aligned Nanopore data
     '''
-    if processes == -1:
-        processes = min(len(cond_a_bams) + len(cond_b_bams), cpu_count())
     results = run_differr_analysis(
         cond_a_bams,
         cond_b_bams,
         reference_fasta,
         raw_counts_hdf,
-        batch_size=BATCH_SIZE,
         median_expr_threshold=median_expr_threshold,
         min_expr_threshold=min_expr_threshold,
         fdr_threshold=fdr_threshold,
         processes=processes,
         max_depth=max_depth,
         normalise=normalise,
+        query=query,
     )
     write_stats_to_bed(output_bed, results)
 
